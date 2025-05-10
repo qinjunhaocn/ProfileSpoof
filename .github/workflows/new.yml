@@ -1,0 +1,61 @@
+name: Auto Hourly Commit
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"  # UTC 时间每小时执行
+
+jobs:
+  safe-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup GPG
+        run: |
+          # 安装 GPG（Ubuntu 已预装，无需额外安装）
+          sudo apt-get update -y && sudo apt-get install -y gnupg
+
+          # 导入私钥并配置信任
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "trust-model tofu" >> ~/.gnupg/gpg.conf
+          (echo 5; echo y; echo save) | gpg --command-fd 0 --no-tty --batch --yes --edit-key "${{ secrets.GPG_KEY_ID }}" trust
+
+          # 配置 Git 使用 GPG
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+
+          # 配置密码自动输入（无头模式）
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+
+      - name: Generate safe commits
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # 生成提交内容（原有逻辑）
+          COMMIT_COUNT=$((1 + RANDOM % 3))
+          for ((commit=1; commit<=$COMMIT_COUNT; commit++)); do
+            RANDOM_LINES=$((1 + RANDOM % 3))
+            for ((i=1; i<=$RANDOM_LINES; i++)); do
+              RANDOM_LEN=$((10 + RANDOM % 11))
+              echo $(openssl rand -base64 20 | tr -dc 'a-zA-Z' | head -c $RANDOM_LEN) >> commit.txt
+            done
+            VERBS=("Optimize" "Adjust" "Refine" "Tune")
+            NOUNS=("workflow" "system" "module" "config")
+            COMMIT_MSG="${VERBS[$RANDOM % ${#VERBS[@]}]} ${NOUNS[$RANDOM % ${#NOUNS[@]}]} $(date +%s | tail -c 4)"
+            
+            # 提交并签名（使用密码）
+            git add commit.txt
+            git -c user.name="qinjunhaocn" -c user.email="avf_j7b6@163.com" commit -S -m "$COMMIT_MSG"
+            sleep 1
+          done
+
+          # 推送提交
+          git push

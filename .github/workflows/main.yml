@@ -1,0 +1,45 @@
+name: Auto Hourly Commit
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"  # 每小时第0分钟执行（北京时间+8时区）
+
+jobs:
+  safe-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate safe commits
+        run: |
+          # 配置Git身份
+          git config --local user.email "avf_j7b6@163.com"
+          git config --local user.name "qinjunhaocn"
+          git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          
+          # 拉取最新代码避免冲突
+          git pull --rebase
+
+          # 生成1~3次独立提交
+          COMMIT_COUNT=$((1 + RANDOM % 3))
+          for ((commit=1; commit<=$COMMIT_COUNT; commit++)); do
+            # 生成1~3行随机内容
+            RANDOM_LINES=$((1 + RANDOM % 3))
+            for ((i=1; i<=$RANDOM_LINES; i++)); do
+              RANDOM_LEN=$((10 + RANDOM % 11))  # 10-20字符
+              echo $(openssl rand -base64 20 | tr -dc 'a-zA-Z' | head -c $RANDOM_LEN) >> commit.txt
+            done
+
+            # 生成唯一提交信息
+            VERBS=("Optimize" "Adjust" "Refine" "Tune")
+            NOUNS=("workflow" "system" "module" "config")
+            COMMIT_MSG="${VERBS[$RANDOM % ${#VERBS[@]}]} ${NOUNS[$RANDOM % ${#NOUNS[@]}]} $(date +%s | tail -c 4)"
+            
+            # 提交并推送
+            git add commit.txt
+            git commit -m "$COMMIT_MSG"
+            sleep 1  # 确保时间戳不同
+          done
+          
+          git push

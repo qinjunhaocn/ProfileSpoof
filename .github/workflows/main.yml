@@ -16,6 +16,8 @@ jobs:
           # 配置Git身份
           git config --local user.email "avf_j7b6@163.com"
           git config --local user.name "qinjunhaocn"
+          git config --global user.signingkey 888AF46E93229617  # 替换为你的密钥 ID
+          git config --global commit.gpgsign true              # 所有提交默认签名
           git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           
           # 拉取最新代码避免冲突
@@ -38,7 +40,7 @@ jobs:
             
             # 提交并推送
             git add commit.txt
-            git commit -m "$COMMIT_MSG"
+            git commit -S -m "$COMMIT_MSG"
             sleep 1  # 确保时间戳不同
           done
           

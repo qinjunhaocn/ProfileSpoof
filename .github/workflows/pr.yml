@@ -1,0 +1,93 @@
+name: Auto PR to qinjunhaocn2/PrIssue
+
+on:
+  workflow_dispatch:        # 手动触发，也可以改成 schedule
+  # schedule:
+  #   - cron: "0 3 * * *"   # 每天 03:00 UTC
+
+jobs:
+  fake-human-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare environment
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # 一些常量
+          OWNER="qinjunhaocn2"
+          REPO="PrIssue"
+          MY_USER=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+                    https://api.github.com/user | jq -r .login)
+
+          # 生成随机字符串函数
+          rand_str() {
+            local len=$1
+            LC_ALL=C tr -dc 'A-Za-z' </dev/urandom | head -c "$len"
+          }
+
+          # 生成随机整数函数
+          rand_int() {
+            local min=$1 max=$2
+            shuf -i "$min-$max" -n1
+          }
+
+          # 1. clone
+          git clone https://${MY_USER}:${GH_TOKEN}@github.com/${OWNER}/${REPO}.git repo
+          cd repo
+
+          # 2. 切一个随机分支名
+          BRANCH="bot-$(rand_str 10)"
+          git checkout -b "$BRANCH"
+
+          # 3. 进入 pr 目录并生成文件
+          mkdir -p pr
+          cd pr
+          FILE_COUNT=$(rand_int 5 20)
+          for i in $(seq 1 "$FILE_COUNT"); do
+            fname="$(rand_str "$(rand_int 5 20)").txt"
+            rand_str "$(rand_int 30 100)" > "$fname"
+          done
+          cd ..
+
+          # 4. 提交
+          git config user.name  "$(curl -s -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/user | jq -r .name)"
+          git config user.email "$(curl -s -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/user | jq -r .email)"
+          git add pr/
+          git commit -m "$(rand_str "$(rand_int 8 18)")"
+
+          # 5. 推到 fork（如果没有 fork 就现 fork）
+          FORK_URL="https://github.com/${MY_USER}/${REPO}.git"
+          if ! git ls-remote --exit-code "$FORK_URL" >/dev/null 2>&1; then
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${OWNER}/${REPO}/forks >/dev/null
+            # 等 GitHub 创建 fork
+            sleep 10
+          fi
+          git push https://${MY_USER}:${GH_TOKEN}@github.com/${MY_USER}/${REPO}.git "$BRANCH"
+
+          # 6. 构造 PR 标题和描述
+          TITLE=$(rand_str "$(rand_int 5 20)")
+          WORD_COUNT=$(rand_int 50 200)
+          DESCRIPTION=""
+          for w in $(seq 1 "$WORD_COUNT"); do
+            DESCRIPTION="$DESCRIPTION$(rand_str "$(rand_int 3 8)") "
+          done
+          DESCRIPTION=$(echo "$DESCRIPTION" | sed 's/ $//')
+
+          # 7. 发起 PR（纯 curl）
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${OWNER}/${REPO}/pulls \
+            -d @- <<EOF
+          {
+            "title": "$TITLE",
+            "head": "${MY_USER}:${BRANCH}",
+            "base": "main",
+            "body": "$DESCRIPTION"
+          }
+EOF

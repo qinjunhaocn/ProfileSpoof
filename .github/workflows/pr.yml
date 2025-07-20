@@ -90,4 +90,3 @@ jobs:
             "base": "main",
             "body": "$DESCRIPTION"
           }
-EOF

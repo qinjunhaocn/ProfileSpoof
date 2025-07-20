@@ -25,10 +25,11 @@ jobs:
           git config user.email "qinjunhaocn@users.noreply.github.com"
       
       - name: Navigate to pr directory
-        run: cd pr
+        run: ls
       
       - name: Generate random file
         run: |
+          cd pr
           FILE_NAME=$(head /dev/urandom | tr -dc a-z | head -c $((RANDOM % 16 + 5)))
           touch $FILE_NAME
           echo "Created file: $FILE_NAME"

@@ -48,6 +48,6 @@ jobs:
           gh pr create \
             --repo qinjunhaocn2/PrIssue \
             --base main \
-            --head qinjunhaocn:PrIssue:main \
+            --head qinjunhaocn:main \
             --title "Add random file $(date +%s)" \
             --body "Auto-generated PR"
